@@ -5,7 +5,6 @@
 ```mermaid
 flowchart TD
     Browser[Next.js UI :3000] -->|"/api/* rewrites"| Nest[NestJS API :3001]
-    Client[Postman / curl] --> Nest
     Nest --> Ingest[IngestionService]
     Nest --> Rag[RagService]
     Ingest --> Web[web.loader]
