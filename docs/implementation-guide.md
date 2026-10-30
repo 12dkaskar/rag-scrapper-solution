@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This application implements Retrieval-Augmented Generation (RAG) over user-provided web pages and PDF documents. It uses a Node.js/TypeScript backend, MongoDB Atlas Vector Search for vector retrieval, and hosted AI APIs (Gemini by default, OpenAI optional) for embeddings and answer generation.
+This application implements Retrieval-Augmented Generation (RAG) over user-provided web pages and PDF documents. It uses a Node.js/TypeScript backend, **Elasticsearch** (Elastic Cloud) for vector retrieval, and hosted AI APIs (Gemini by default, OpenAI optional) for embeddings and answer generation.
 
 RAG grounds a language model's response in retrieved source material. It does not guarantee correctness; source quality, retrieval quality, prompt design, and model behavior still matter.
 
@@ -30,9 +30,9 @@ flowchart LR
     end
 
     subgraph data [Data plane]
-        Atlas[(MongoDB Atlas)]
-        VS[Atlas Vector Search index]
-        Atlas --- VS
+        ES[(Elasticsearch)]
+        VS[dense_vector kNN]
+        ES --- VS
     end
 
     subgraph ai [Hosted AI]
@@ -47,7 +47,7 @@ flowchart LR
     Postman --> API
     Browser --> Next
     Next --> API
-    API --> Atlas
+    API --> ES
     API --> Gemini
     API -.-> OpenAI
     API --> WebPages
@@ -57,7 +57,7 @@ flowchart LR
 |----------|--------|
 | Client → API | Untrusted input (URLs, PDFs, questions) |
 | API → web | Untrusted HTML; SSRF controls apply |
-| API → Atlas | Private credentials; full chunk text stored |
+| API → Elasticsearch | Private credentials; full chunk text stored |
 | API → AI providers | Private API keys; prompts include retrieved text |
 
 ### 2.2 Container view (major subsystems)
@@ -106,8 +106,8 @@ flowchart TB
     Retrieve --> ChunkRepo
     Emb --> GeminiExt[Gemini / OpenAI]
     Gen --> GeminiExt
-    ChunkRepo --> AtlasDB[(Atlas collections)]
-    DocRepo --> AtlasDB
+    ChunkRepo --> ESDB[(Elasticsearch indices)]
+    DocRepo --> ESDB
 ```
 
 ### 2.3 Data flow summary
@@ -194,7 +194,7 @@ sequenceDiagram
     participant Emb as EmbeddingProvider
     participant Doc as DocumentsRepository
     participant Ch as ChunksRepository
-    participant Atlas as MongoDB Atlas
+    participant ES as Elasticsearch
 
     Client->>Route: POST url or PDF
     Route->>Ing: ingestUrl / ingestPdf
@@ -208,7 +208,7 @@ sequenceDiagram
         Emb-->>Ing: vectors
     end
     Ing->>Ch: insertMany validate dims
-    Ch->>Atlas: insert rag_chunks
+    Ch->>ES: bulk index rag_chunks
     Ing->>Doc: completed + chunkCount
     Ing-->>Route: documentId status
     Route-->>Client: 202 JSON
@@ -226,7 +226,7 @@ sequenceDiagram
     participant Ret as RetrievalService
     participant Emb as EmbeddingProvider
     participant Ch as ChunksRepository
-    participant Atlas as Atlas vectorSearch
+    participant ES as Elasticsearch kNN
     participant Gen as GenerationProvider
 
     Client->>Route: POST question documentIds topK
@@ -235,8 +235,8 @@ sequenceDiagram
     Ret->>Emb: embedTexts question
     Emb-->>Ret: queryVector
     Ret->>Ch: vectorSearch
-    Ch->>Atlas: aggregate vectorSearch
-    Atlas-->>Ch: top K chunks
+    Ch->>ES: knn search on embedding
+    ES-->>Ch: top K chunks
     Ch-->>Ret: RetrievedChunk
     Ret-->>Rag: chunks sources
 
@@ -256,7 +256,7 @@ Implemented in `ChunksRepository.vectorSearch`:
 
 ```mermaid
 flowchart LR
-    Q[queryVector 768-dim] --> VS["$vectorSearch"]
+    Q[queryVector 768-dim] --> VS["kNN dense_vector"]
     VS --> F{filter?}
     F -->|documentIds| FD["documentId $in"]
     F -->|none| All[all chunks in index]
@@ -264,7 +264,7 @@ flowchart LR
     Proj --> Out[RetrievedChunk array]
 ```
 
-Index definition must match `MONGODB_VECTOR_INDEX`, field `embedding`, and `EMBEDDING_DIMENSIONS` — see [vector-index.json](./vector-index.json).
+Index mapping must match `ELASTICSEARCH_CHUNKS_INDEX`, field `embedding`, and `EMBEDDING_DIMENSIONS` — see [elastic-chunks-mapping.json](./elastic-chunks-mapping.json).
 
 ### 3.6 Entity relationship (logical)
 
@@ -297,7 +297,7 @@ erDiagram
 | PDF loader | Validate + extract pages | `src/loaders/pdf.loader.ts` |
 | Chunking | Split text, preserve metadata | `src/services/chunking.service.ts` |
 | Embedding provider | Hosted embeddings | `src/providers/embeddings/*` |
-| MongoDB repository | Persist + vector search | `src/db/repositories/*.ts` |
+| Elasticsearch repository | Persist + kNN search | `packages/core/src/db/repositories/*.ts` |
 | Retrieval service | Query embed + search | `src/services/retrieval.service.ts` |
 | Generation provider | Grounded answers | `src/providers/generation/*` |
 | Configuration | Env validation | `src/config/env.ts` |
@@ -323,12 +323,12 @@ Implemented in `RagService` + `RetrievalService`:
 
 1. `POST /api/chat` validates body via Zod.
 2. Question is embedded with the configured embedding provider.
-3. `$vectorSearch` runs against `MONGODB_VECTOR_INDEX` (see `chunks.repository.ts`).
+3. kNN search runs on `rag_chunks` (see `chunks.repository.ts`).
 4. Context is built with `MAX_CONTEXT_CHARS` cap.
 5. If zero chunks, a fixed message is returned **without** calling the LLM.
 6. Otherwise `GenerationProvider` receives grounding instructions from `prompts.ts`.
 
-## 7. MongoDB data model
+## 7. Elasticsearch data model
 
 ### `rag_documents`
 
@@ -339,19 +339,19 @@ Implemented in `RagService` + `RetrievalService`:
 - `documentId`, `content`, `embedding` (number[]), `metadata` (sourceType, sourceUrl, title, chunkIndex, pageNumber)
 - `embeddingProvider`, `embeddingModel`, `embeddingDimensions`, `createdAt`
 
-## 8. Atlas Vector Search index
+## 8. Chunks index (vector field)
 
 Default Gemini configuration:
 
-- Index name: `rag_vector_index` (or value of `MONGODB_VECTOR_INDEX`, e.g. `default`)
-- Path: `embedding`
-- Dimensions: **768**
+- Index: `rag_chunks` (`ELASTICSEARCH_CHUNKS_INDEX`)
+- Field: `embedding` (`dense_vector`)
+- Dimensions: **768** (`EMBEDDING_DIMENSIONS`)
 - Similarity: cosine
-- Filter: `documentId` (required when chat passes `documentIds`)
+- Filter: `documentId` keyword (used when chat passes `documentIds`)
 
-Exact JSON: [vector-index.json](./vector-index.json). Setup steps: [atlas-setup.md](./atlas-setup.md).
+Mappings: [elastic-chunks-mapping.json](./elastic-chunks-mapping.json). Setup: [elastic-cloud-setup.md](./elastic-cloud-setup.md).
 
-**Manual step:** The vector index must be created in Atlas; it is not created by `npm run ensure-indexes`.
+**Indices and vector mapping** are created by `npm run ensure-indexes` when connected to Elasticsearch.
 
 ## 9. Provider abstraction
 
@@ -387,10 +387,9 @@ See [api.md](./api.md).
 
 Copy `.env.example` to `.env` and set at minimum:
 
-- `MONGODB_URI`
+- `ELASTICSEARCH_URL` and `ELASTICSEARCH_API_KEY`
 - `GEMINI_API_KEY` (for default providers)
 - `EMBEDDING_MODEL=gemini-embedding-001` and `EMBEDDING_DIMENSIONS=768`
-- `MONGODB_VECTOR_INDEX` matching your Atlas vector index name
 
 ## 13. Testing and validation
 
@@ -403,8 +402,8 @@ npm test
 npm run build
 ```
 
-- **Unit tests:** mocked providers/DB where needed — no live Atlas or API keys required.
-- **Integration:** Not automated; use real Atlas + keys locally after index creation.
+- **Unit tests:** mocked providers/DB where needed — no live Elasticsearch or API keys required.
+- **Integration:** Not automated; use Elastic Cloud + keys locally after `ensure-indexes`.
 
 ## 14. Operational considerations
 
@@ -420,8 +419,7 @@ npm run build
 | Node | >= 20 (engines in `package.json`) |
 | Embedding default | Gemini `gemini-embedding-001`, 768 dimensions |
 | Generation default | Gemini `gemini-3.5-flash-lite` (verify against your API key) |
-| Database | `MONGODB_DATABASE` default `rag_app` |
-| Collections | `rag_documents`, `rag_chunks` |
-| Vector index | `MONGODB_VECTOR_INDEX` on field `embedding` |
+| Database | Elasticsearch indices `rag_documents`, `rag_chunks` |
+| Vector search | kNN on `embedding` in chunks index |
 | Endpoints | `/health`, `/ready`, `/api/ingest/*`, `/api/documents`, `/api/chat` |
-| Manual setup | Atlas cluster, vector index, `.env` credentials |
+| Manual setup | Elastic Cloud deployment, API key, `.env`, `npm run ensure-indexes` |

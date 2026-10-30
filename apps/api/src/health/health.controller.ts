@@ -1,6 +1,6 @@
-import { Controller, Get, HttpCode, HttpStatus, Res } from "@nestjs/common";
+import { Controller, Get, HttpStatus, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { pingMongo } from "@rag-scrapper/core";
+import { pingElasticsearch } from "@rag-scrapper/core";
 
 @Controller()
 export class HealthController {
@@ -11,11 +11,13 @@ export class HealthController {
 
   @Get("ready")
   async ready(@Res() res: Response): Promise<void> {
-    const mongoOk = await pingMongo();
-    if (!mongoOk) {
-      res.status(HttpStatus.SERVICE_UNAVAILABLE).json({ status: "not_ready", mongo: false });
+    const elasticsearchOk = await pingElasticsearch();
+    if (!elasticsearchOk) {
+      res
+        .status(HttpStatus.SERVICE_UNAVAILABLE)
+        .json({ status: "not_ready", elasticsearch: false });
       return;
     }
-    res.json({ status: "ready", mongo: true });
+    res.json({ status: "ready", elasticsearch: true });
   }
 }

@@ -12,12 +12,12 @@ flowchart TD
     Web --> Chunk[ChunkingService]
     Pdf --> Chunk
     Chunk --> Embed[EmbeddingProvider]
-    Embed --> Atlas[(MongoDB Atlas)]
-    Ingest --> Atlas
+    Embed --> ES[(Elasticsearch)]
+    Ingest --> ES
     Rag --> Retrieve[RetrievalService]
     Retrieve --> Embed
-    Retrieve --> VSearch[Vector Search]
-    VSearch --> Atlas
+    Retrieve --> VSearch[kNN vector search]
+    VSearch --> ES
     Rag --> Gen[GenerationProvider]
     Gen --> LLM[OpenAI or Gemini API]
 ```
@@ -27,7 +27,7 @@ Domain logic lives in `packages/core`. HTTP adapters: `apps/api` (Nest), `apps/w
 ## Trust boundaries
 
 - **Public:** Browser and HTTP clients send URLs, PDFs, and questions to the UI or API.
-- **Private server:** API keys, `MONGODB_URI`, embedding/generation calls, and full chunk text in logs (logging avoids secrets and full document bodies by default).
+- **Private server:** API keys, `ELASTICSEARCH_*`, embedding/generation calls, and full chunk text in logs (logging avoids secrets and full document bodies by default).
 - **Untrusted data:** Fetched HTML, PDF text, and retrieved chunks are treated as untrusted reference material in LLM prompts.
 
 ## Component responsibilities
@@ -37,7 +37,7 @@ Domain logic lives in `packages/core`. HTTP adapters: `apps/api` (Nest), `apps/w
 | `apps/api/src/*` | Nest controllers, filters, middleware |
 | `packages/core/src/services/*` | Ingestion, retrieval, RAG orchestration |
 | `packages/core/src/providers/*` | Swappable OpenAI / Gemini adapters |
-| `packages/core/src/db/repositories/*` | Persistence and vector search |
+| `packages/core/src/db/repositories/*` | Persistence and kNN search |
 | `packages/core/src/loaders/*` | URL fetch with SSRF checks, PDF parse |
 | `packages/core/src/config/env.ts` | Validated configuration at startup |
 | `apps/web/src/*` | Next.js UI (ingest, list, chat) |
@@ -55,7 +55,7 @@ Domain logic lives in `packages/core`. HTTP adapters: `apps/api` (Nest), `apps/w
 
 1. Validate question and optional `documentIds` filter.
 2. Embed question with the **same** embedding model as stored chunks.
-3. Run Atlas `$vectorSearch` (optional filter on `documentId`).
+3. Run Elasticsearch kNN on `embedding` (optional filter on `documentId`).
 4. Build bounded context from top chunks.
 5. If no chunks, return explicit no-context message.
 6. Otherwise call generation provider with grounding instructions and return answer + source metadata.

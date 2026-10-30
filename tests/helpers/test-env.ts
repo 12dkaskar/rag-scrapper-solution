@@ -3,8 +3,10 @@ import { resetEnvCache } from "@rag-scrapper/core";
 export const baseTestEnv: Record<string, string> = {
   NODE_ENV: "test",
   PORT: "3001",
-  MONGODB_URI: "mongodb://localhost:27017/rag_test",
-  MONGODB_DATABASE: "rag_test",
+  ELASTICSEARCH_URL: "https://localhost:9200",
+  ELASTICSEARCH_API_KEY: "test-elastic-api-key",
+  ELASTICSEARCH_CHUNKS_INDEX: "rag_chunks_test",
+  ELASTICSEARCH_DOCUMENTS_INDEX: "rag_documents_test",
   EMBEDDING_PROVIDER: "gemini",
   EMBEDDING_MODEL: "gemini-embedding-001",
   EMBEDDING_DIMENSIONS: "768",

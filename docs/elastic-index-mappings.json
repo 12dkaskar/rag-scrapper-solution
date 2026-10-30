@@ -1,0 +1,19 @@
+{
+  "rag_documents": {
+    "mappings": {
+      "properties": {
+        "documentId": { "type": "keyword" },
+        "sourceType": { "type": "keyword" },
+        "sourceUrl": { "type": "keyword" },
+        "title": { "type": "text" },
+        "status": { "type": "keyword" },
+        "chunkCount": { "type": "integer" },
+        "contentHash": { "type": "keyword" },
+        "errorSummary": { "type": "text" },
+        "createdAt": { "type": "date" },
+        "updatedAt": { "type": "date" }
+      }
+    }
+  },
+  "rag_chunks": "see elastic-chunks-mapping.json"
+}

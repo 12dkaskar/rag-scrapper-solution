@@ -6,15 +6,15 @@ Base URL: `http://localhost:3001` (API) or `http://localhost:3000/api` (via Next
 
 ### `GET /health`
 
-Liveness probe. Does not check MongoDB.
+Liveness probe. Does not check Elasticsearch.
 
 **Response:** `{ "status": "ok" }`
 
 ### `GET /ready`
 
-Readiness probe. Pings MongoDB.
+Readiness probe. Pings Elasticsearch.
 
-**Response:** `{ "status": "ready", "mongo": true }` or `503` if MongoDB is unavailable.
+**Response:** `{ "status": "ready", "elasticsearch": true }` or `503` if Elasticsearch is unavailable.
 
 ---
 

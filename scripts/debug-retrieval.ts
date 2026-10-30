@@ -1,49 +1,58 @@
-import { loadEnv, closeMongo, connectMongo } from "@rag-scrapper/core";
-import { getDb } from "../packages/core/src/db/mongo.client.js";
+import {
+  closeElasticsearch,
+  connectElasticsearch,
+  loadEnv,
+} from "@rag-scrapper/core";
+import { getElasticsearchClient } from "../packages/core/src/db/elastic.client.js";
 
 const documentId = process.argv[2];
 
 async function main(): Promise<void> {
   const env = loadEnv();
-  await connectMongo(env);
-  const coll = getDb().collection(env.MONGODB_CHUNKS_COLLECTION);
+  await connectElasticsearch(env);
+  const client = getElasticsearchClient();
+  const chunksIndex = env.ELASTICSEARCH_CHUNKS_INDEX;
 
-  const total = await coll.countDocuments();
-  const forDoc = documentId ? await coll.countDocuments({ documentId }) : null;
-  const one = await coll.findOne(
-    documentId ? { documentId } : {},
-    { projection: { content: 1, documentId: 1, embedding: { $slice: 1 } } },
-  );
-  const full = documentId
-    ? await coll.findOne({ documentId }, { projection: { embedding: 1 } })
-    : await coll.findOne({}, { projection: { embedding: 1 } });
+  const total = await client.count({ index: chunksIndex });
+  const forDoc = documentId
+    ? await client.count({ index: chunksIndex, query: { term: { documentId } } })
+    : null;
 
-  let searchIndexes: unknown;
+  const sample = await client.search<{ documentId?: string; embedding?: number[] }>({
+    index: chunksIndex,
+    size: 1,
+    query: documentId ? { term: { documentId } } : { match_all: {} },
+    _source: ["documentId", "embedding"],
+  });
+
+  const hit = sample.hits.hits[0];
+  const embeddingLength = Array.isArray(hit?._source?.embedding) ? hit._source.embedding.length : 0;
+
+  let mapping: unknown;
   try {
-    searchIndexes = await coll.aggregate([{ $listSearchIndexes: {} }]).toArray();
+    mapping = await client.indices.getMapping({ index: chunksIndex });
   } catch (e) {
-    searchIndexes = { error: String(e) };
+    mapping = { error: String(e) };
   }
 
   console.log(
     JSON.stringify(
       {
-        database: env.MONGODB_DATABASE,
-        collection: env.MONGODB_CHUNKS_COLLECTION,
-        vectorIndexName: env.MONGODB_VECTOR_INDEX,
+        chunksIndex,
+        documentsIndex: env.ELASTICSEARCH_DOCUMENTS_INDEX,
         expectedDimensions: env.EMBEDDING_DIMENSIONS,
-        totalChunks: total,
-        chunksForDocumentId: forDoc,
-        sampleDocumentId: one?.documentId,
-        embeddingLength: full?.embedding?.length ?? 0,
-        searchIndexes,
+        totalChunks: total.count,
+        chunksForDocumentId: forDoc?.count ?? null,
+        sampleDocumentId: hit?._source?.documentId,
+        embeddingLength,
+        mapping,
       },
       null,
       2,
     ),
   );
 
-  await closeMongo();
+  await closeElasticsearch();
 }
 
 main().catch((e) => {

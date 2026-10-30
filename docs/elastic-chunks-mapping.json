@@ -1,0 +1,28 @@
+{
+  "index": "rag_chunks",
+  "mappings": {
+    "properties": {
+      "documentId": { "type": "keyword" },
+      "content": { "type": "text" },
+      "embedding": {
+        "type": "dense_vector",
+        "dims": 768,
+        "index": true,
+        "similarity": "cosine"
+      },
+      "metadata": {
+        "properties": {
+          "sourceType": { "type": "keyword" },
+          "sourceUrl": { "type": "keyword" },
+          "title": { "type": "text" },
+          "chunkIndex": { "type": "integer" },
+          "pageNumber": { "type": "integer" }
+        }
+      },
+      "embeddingModel": { "type": "keyword" },
+      "embeddingProvider": { "type": "keyword" },
+      "embeddingDimensions": { "type": "integer" },
+      "createdAt": { "type": "date" }
+    }
+  }
+}

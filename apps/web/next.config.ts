@@ -19,13 +19,15 @@ function maxUploadBodySize(): string {
   return `${mb}mb`;
 }
 
+const uploadBodyLimit = maxUploadBodySize();
+
 const nextConfig: NextConfig = {
   experimental: {
     // Large PDFs + long embed/ingest (ebooks can exceed 5 minutes).
     proxyTimeout: 900_000,
     // Rewrites clone the request body; default is 10MB (truncates uploads to the API).
-    middlewareClientMaxBodySize: maxUploadBodySize(),
-  },
+    middlewareClientMaxBodySize: uploadBodyLimit,
+  } as NextConfig["experimental"],
   async rewrites() {
     return [
       {

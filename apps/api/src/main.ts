@@ -1,11 +1,11 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
-import { connectMongo, getCorsOrigins, loadEnv } from "@rag-scrapper/core";
+import { connectElasticsearch, getCorsOrigins, loadEnv } from "@rag-scrapper/core";
 import { AppModule } from "./app.module.js";
 
 async function bootstrap(): Promise<void> {
   const env = loadEnv();
-  await connectMongo(env);
+  await connectElasticsearch(env);
   const app = await NestFactory.create(AppModule, { logger: ["error", "warn", "log"] });
   const origins = getCorsOrigins(env);
   app.enableCors({

@@ -23,8 +23,8 @@ describe("loadEnv", () => {
     ).toThrow(/OPENAI_API_KEY/);
   });
 
-  it("reports missing MONGODB_URI without exposing values", () => {
+  it("reports missing ELASTICSEARCH_URL without exposing values", () => {
     resetEnvCache();
-    expect(() => loadEnv(withTestEnv({ MONGODB_URI: "" }))).toThrow(/MONGODB_URI/);
+    expect(() => loadEnv(withTestEnv({ ELASTICSEARCH_URL: "" }))).toThrow(/ELASTICSEARCH_URL/);
   });
 });

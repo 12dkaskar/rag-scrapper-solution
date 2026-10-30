@@ -2,11 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import { ChunksRepository, loadEnv, resetEnvCache, ValidationError } from "@rag-scrapper/core";
 import { withTestEnv } from "./helpers/test-env.js";
 
-vi.mock("../packages/core/src/db/mongo.client.js", () => ({
-  getDb: () => ({
-    collection: () => ({
-      insertMany: vi.fn().mockResolvedValue({ insertedCount: 1 }),
-    }),
+vi.mock("../packages/core/src/db/elastic.client.js", () => ({
+  getElasticsearchClient: () => ({
+    bulk: vi.fn().mockResolvedValue({ errors: false }),
   }),
 }));
 

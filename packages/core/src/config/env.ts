@@ -33,14 +33,17 @@ const providerEnum = z.enum(["openai", "gemini"]);
 const baseSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3001),
-  MONGODB_URI: z.string().min(1, "MONGODB_URI is required"),
-  MONGODB_DATABASE: z.string().min(1).default("rag_app"),
-  MONGODB_CHUNKS_COLLECTION: z.string().min(1).default("rag_chunks"),
-  MONGODB_DOCUMENTS_COLLECTION: z.string().min(1).default("rag_documents"),
-  MONGODB_VECTOR_INDEX: z.string().min(1).default("rag_vector_index"),
+  ELASTICSEARCH_URL: z.string().min(1, "ELASTICSEARCH_URL is required"),
+  ELASTICSEARCH_API_KEY: z.string().min(1, "ELASTICSEARCH_API_KEY is required"),
+  ELASTICSEARCH_CHUNKS_INDEX: z.string().min(1).default("rag_chunks"),
+  ELASTICSEARCH_DOCUMENTS_INDEX: z.string().min(1).default("rag_documents"),
   EMBEDDING_PROVIDER: providerEnum.default("gemini"),
   EMBEDDING_MODEL: z.string().min(1),
   EMBEDDING_DIMENSIONS: z.coerce.number().int().positive(),
+  /** Parallel embed calls per batch (keep low on Gemini free tier). */
+  EMBED_CONCURRENCY: z.coerce.number().int().positive().max(4).default(2),
+  /** Pause between embed batches to stay under Gemini embed RPM quotas. */
+  EMBED_MIN_INTERVAL_MS: z.coerce.number().int().nonnegative().default(650),
   GENERATION_PROVIDER: providerEnum.default("gemini"),
   GENERATION_MODEL: z.string().min(1),
   CHUNK_SIZE: z.coerce.number().int().positive().default(1200),

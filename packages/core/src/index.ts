@@ -1,5 +1,11 @@
 export { loadEnv, resetEnvCache, getCorsOrigins, type Env } from "./config/env.js";
-export { connectMongo, closeMongo, pingMongo } from "./db/mongo.client.js";
+export {
+  connectElasticsearch,
+  closeElasticsearch,
+  pingElasticsearch,
+  getElasticsearchClient,
+} from "./db/elastic.client.js";
+export { ensureElasticIndices } from "./db/elastic-indices.js";
 export { ChunksRepository } from "./db/repositories/chunks.repository.js";
 export { DocumentsRepository } from "./db/repositories/documents.repository.js";
 export { createRagContext, type RagContext } from "./rag-context.js";

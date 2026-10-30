@@ -1,23 +1,19 @@
 import {
-  ChunksRepository,
-  closeMongo,
-  connectMongo,
-  DocumentsRepository,
+  closeElasticsearch,
+  connectElasticsearch,
+  ensureElasticIndices,
   loadEnv,
 } from "@rag-scrapper/core";
 
 async function main(): Promise<void> {
   const env = loadEnv();
-  await connectMongo(env);
-  const documents = new DocumentsRepository(env);
-  const chunks = new ChunksRepository(env);
-  await documents.ensureIndexes();
-  await chunks.ensureIndexes();
-  console.log("Standard indexes ensured on documents and chunks collections.");
+  await connectElasticsearch(env);
+  await ensureElasticIndices(env);
   console.log(
-    "Reminder: create the Atlas Vector Search index manually — see docs/atlas-setup.md",
+    `Elasticsearch indices ensured: ${env.ELASTICSEARCH_DOCUMENTS_INDEX}, ${env.ELASTICSEARCH_CHUNKS_INDEX}`,
   );
-  await closeMongo();
+  console.log("Vector field mapping is included on the chunks index (dense_vector).");
+  await closeElasticsearch();
 }
 
 main().catch((err) => {
